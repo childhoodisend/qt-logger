@@ -1,33 +1,21 @@
-/********************************************************************
-* Copyright (C) 2022 by Elektron Research and Production Company
-* ALL RIGHTS RESERVED.
-*********************************************************************
-*
-* Project: Graphic Workstation (6G_DIRA_3D)
-*
-* File Name: modules/Logger/logger.cpp
-*
-* Description: Файл с реализацией интерфейса модуля ведения журнала
-*           Logger.
-*
-* Notes: Any remarks or cautions
-*
-* History:
-*	20 Sep 2022	Igor Popovich: Created
-*
-********************************************************************/
 #include "logger.h"
 
 #include <QTime>
 #include <QFileInfo>
 #include <QSettings>
+#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+#include <QTextCodec>
+#endif
 
 //! Namespace for Graphical Workstation of the 6G_DIRA_3D project
 namespace DIRA_3D_GW {
 
-    Logger::Logger() : m_rootFolder(""), m_fileName(""), m_level(LoggerLevel::Warning), m_maxFilesSizeInBytes(-1),
-                       m_maxFilesCount(-1) {
-    }
+    Logger::Logger(): m_rootFolder("")
+                    , m_fileName("")
+                    , m_level(LoggerLevel::Warning)
+                    , m_maxFilesSizeInBytes(-1)
+                    , m_maxFilesCount(-1)
+    {}
 
     Logger::~Logger() {
         m_awake_to_exit = true;
@@ -39,7 +27,11 @@ namespace DIRA_3D_GW {
         }
     }
 
-    bool Logger::init(const QString &dir, const QString &fileName, LoggerLevel level, std::int64_t maxFileSize, std::int32_t maxFilesCount) {
+    bool Logger::init(const QString &dir,
+                      const QString &fileName,
+                      LoggerLevel level,
+                      std::int64_t maxFileSize,
+                      std::int32_t maxFilesCount) {
 
         if (dir.isEmpty()) {
             return false;
@@ -74,8 +66,6 @@ namespace DIRA_3D_GW {
             std::unique_lock<std::mutex> lock(m_mutex);
             if (!m_ready) {
                 m_cv.wait(lock);
-                m_ready = false;
-
                 if (m_awake_to_exit) {
                     return;
                 }
@@ -88,7 +78,10 @@ namespace DIRA_3D_GW {
                     backupActiveFile();
                 }
                 m_cur_file.write(cur.toStdString().c_str());
+                m_cur_file.flush();
             }
+
+            m_ready = false;
         }
     }
 
@@ -109,35 +102,39 @@ namespace DIRA_3D_GW {
         return false;
     }
 
-    QString Logger::format_msg(const QString &str, const QString &message, const QString &sourceFile, std::int32_t sourceLine) {
+    QString Logger::format_msg(const QString &strLevel,
+                               const QString &message,
+                               const QString &sourceFile,
+                               std::int32_t sourceLine) {
         if (!sourceFile.isEmpty()) {
             if (sourceLine != -1)
                 return QString("%1 [%2]: %3 [%4 (%5)]\n")
                         .arg(QDateTime::currentDateTime().toString("dd.MM.yyyy hh:mm:ss"))
-                        .arg(str).arg(message).arg(sourceFile).arg(sourceLine);
+                        .arg(strLevel).arg(message).arg(sourceFile).arg(sourceLine);
 
             return QString("%1 [%2]: %3 [%4]\n")
                         .arg(QDateTime::currentDateTime().toString("dd.MM.yyyy hh:mm:ss"))
-                        .arg(str).arg(message).arg(sourceFile);
+                        .arg(strLevel).arg(message).arg(sourceFile);
         }
 
         if (sourceLine != -1)
             return QString("%1 [%2]: %3 (%4)\n")
                         .arg(QDateTime::currentDateTime().toString("dd.MM.yyyy hh:mm:ss"))
-                        .arg(str).arg(message).arg(sourceLine);
+                        .arg(strLevel).arg(message).arg(sourceLine);
 
         return QString("%1 [%2]: %3\n")
                         .arg(QDateTime::currentDateTime().toString("dd.MM.yyyy hh:mm:ss"))
-                        .arg(str).arg(message);
+                        .arg(strLevel).arg(message);
     }
 
     LoggerLevel Logger::LoggerLevel_form_str(const QString& level) {
-        std::map<QString, LoggerLevel> m_log = {{"System", System}, {"Critical", Critical},
-                                                {"Error", Error}, {"Warning", Warning},
-                                                {"Info", Info}, {"Debug", Debug},
-                                                {"Developer", Developer}};
-        if (m_log.find(level) != m_log.end()) {
-            return m_log[level];
+        std::map<QString, LoggerLevel> logMap = {{"SYSTEM", System}, {"CRITICAL", Critical},
+                                                 {"ERROR", Error}, {"WARNING", Warning},
+                                                 {"INFO", Info}, {"DEBUG", Debug},
+                                                 {"DEVELOPER", Developer}};
+        QString upperLevel = level.toUpper();
+        if (logMap.find(upperLevel) != logMap.end()) {
+            return logMap[upperLevel];
         }
         return Warning;
     }
@@ -150,7 +147,15 @@ namespace DIRA_3D_GW {
         std::map<QString, int64_t> m_size = {{"Kb", 1024ULL},
                                              {"Mb", 1024ULL*1024ULL},
                                              {"Gb", 1024ULL*1024ULL*1024ULL},
-                                             {"Tb", 1024ULL*1024ULL*1024ULL*1024ULL}};
+                                             {"Tb", 1024ULL*1024ULL*1024ULL*1024ULL},
+                                             {"kb", 1024ULL},
+                                             {"mb", 1024ULL*1024ULL},
+                                             {"gb", 1024ULL*1024ULL*1024ULL},
+                                             {"tb", 1024ULL*1024ULL*1024ULL*1024ULL},
+                                             {"KB", 1024ULL},
+                                             {"MB", 1024ULL*1024ULL},
+                                             {"GB", 1024ULL*1024ULL*1024ULL},
+                                             {"TB", 1024ULL*1024ULL*1024ULL*1024ULL}};
 
         for (const auto& s : m_size) {
             const auto& pos = size.indexOf(s.first);
@@ -175,6 +180,10 @@ namespace DIRA_3D_GW {
         }
 
         QSettings sett(file, QSettings::IniFormat);
+#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+        QTextCodec *codec = QTextCodec::codecForName("UTF-8");
+        sett.setIniCodec(codec);
+#endif
         sett.beginGroup(section);
         this->m_rootFolder = sett.value("LogFolder", "").toString();
         this->m_fileName = sett.value("LogFileName", "").toString();
@@ -248,6 +257,11 @@ namespace DIRA_3D_GW {
         }
     }
 
+    bool Logger::isDeveloper() const    {   return m_level == LoggerLevel::Developer;   }
+    bool Logger::isDebug() const        {   return m_level >= LoggerLevel::Debug;       }
+    bool Logger::isInfo() const         {   return m_level >= LoggerLevel::Info;        }
+    bool Logger::isWarning() const      {   return m_level >= LoggerLevel::Warning;     }
+
     bool Logger::isFileMaxSize() const {
         static const qint64 diff = 80;
         return m_maxFilesSizeInBytes != -1 && m_cur_file.size() - diff >= m_maxFilesSizeInBytes;
@@ -256,10 +270,20 @@ namespace DIRA_3D_GW {
     void Logger::backupActiveFile() {
         if (m_maxFilesCount == -1) {
             QFile backup(m_cur_file.fileName() + "_backup");
+
+            if (backup.exists())
+                backup.remove();
+
             // copy from backup to m_cur_file
             if(m_cur_file.copy(backup.fileName())) {
-                if (!backup.open(QIODevice::ReadOnly)) {
-                    qWarning("Cannot create the file %s", (const char *) m_cur_file.fileName().data());
+                backup.setPermissions(backup.permissions() |
+                                    QFileDevice::WriteOwner |
+                                    QFileDevice::WriteUser |
+                                    QFileDevice::WriteGroup |
+                                    QFileDevice::WriteOther);
+
+                if (!backup.open(QIODevice::ReadOnly|QIODevice::Unbuffered|QIODevice::Text)) {
+                    qWarning("Cannot create the file %s", (const char *) backup.fileName().data());
                 }
                 const auto size = (qint64)backup.size() / 4;
                 backup.seek(size);
@@ -274,7 +298,17 @@ namespace DIRA_3D_GW {
                 // write current size to m_cur_file
                 const auto size_to_write = backup.size() - backup.pos();
                 m_cur_file.write((const char*) backup.map(backup.pos(), size_to_write), size_to_write);
-                m_cur_dir.remove(backup.fileName());
+                m_cur_file.flush();
+                backup.close();
+                std::thread remover = std::thread([&](QString fn)
+                                        {
+                                           QFile f(fn);
+                                           while (f.exists())
+                                                f.remove();
+                                        }, m_cur_file.fileName() + "_backup");
+
+                if (remover.joinable())
+                    remover.detach();
             }
             else {
                 qWarning("Cannot create the file %s", (const char *) backup.fileName().data());
@@ -287,15 +321,16 @@ namespace DIRA_3D_GW {
             while (m_maxFilesCount - 1 < files.size()) {
                 // clean last files
                 const QFileInfo &info = files.takeFirst();
-                //std::cout << "delete " << info.fileName().toStdString() << std::endl;
                 QFile::remove(info.absoluteFilePath());
                 files.pop_front();
             }
 
             // rename m_cur_file
-            QString new_file_name = QFileInfo(m_cur_file).baseName() + QDateTime::currentDateTime().toString("_ddMMyyyy_hhmmss:zzz.log");
+            QString new_file_name = QFileInfo(m_cur_file).baseName()
+                                     + QDateTime::currentDateTime().toString("_ddMMyyyy_hhmmss_zzz.log");
             while (m_cur_dir.exists(m_cur_dir.filePath(new_file_name))) {
-                new_file_name = QFileInfo(m_cur_file).baseName() + QDateTime::currentDateTime().toString("_ddMMyyyy_hhmmss:zzz.log");
+                new_file_name = QFileInfo(m_cur_file).baseName()
+                                 + QDateTime::currentDateTime().toString("_ddMMyyyy_hhmmss_zzz.log");
             }
 
             m_cur_file.close();

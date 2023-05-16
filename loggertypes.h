@@ -1,21 +1,3 @@
-/********************************************************************
-* Copyright (C) 2022 by Elektron Research and Production Company
-* ALL RIGHTS RESERVED.
-*********************************************************************
-*
-* Project: Graphic Workstation (6G_DIRA_3D)
-*
-* File Name: common/loggertypes.h
-*
-* Description: Файл с описанием всех типов и структур данных для
-*           для модуля ведения журнала работы приложения (модуля)
-*
-* Notes: Any remarks or cautions
-*
-* History:
-*	20 Sep 2022	Igor Popovich: Created
-*
-********************************************************************/
 #ifndef LOGGERTYPES_H
 #define LOGGERTYPES_H
 
