@@ -289,7 +289,7 @@ namespace DIRA_3D_GW {
                 backup.seek(size);
 
                 const auto str = backup.readLine();
-                const int pos = str.indexOf("\n");
+                const int pos = (int)str.indexOf("\n");
                 backup.seek(size + pos + 1);
 
                 if (!m_cur_file.open(QIODevice::ReadWrite | QIODevice::Truncate)) {
